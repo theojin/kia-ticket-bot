@@ -10,6 +10,8 @@ ISP/안심클릭 방식이 강제될 경우 Telegram + 소리 알림으로 수�
 NOTE: 결제창의 실제 선택자/iframe 구조는 DevTools로 확인 후 업데이트하세요.
 """
 
+from __future__ import annotations
+
 import asyncio
 
 from patchright.async_api import Page, TimeoutError as PlaywrightTimeoutError

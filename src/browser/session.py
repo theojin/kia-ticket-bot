@@ -5,6 +5,8 @@ browser/session.py - Patchright 브라우저 세션 생성
 Patchright는 Playwright의 CDP 레벨 봇 탐지 신호를 패치한 버전입니다.
 """
 
+from __future__ import annotations
+
 from patchright.async_api import async_playwright, Browser, BrowserContext, Page
 from loguru import logger
 

@@ -6,6 +6,7 @@ monitor/scheduler.py - 정밀 타이밍 스케줄러
 """
 
 import asyncio
+import contextlib
 import ntplib
 from datetime import datetime, timedelta, timezone
 from typing import Callable, Awaitable
@@ -13,6 +14,7 @@ from typing import Callable, Awaitable
 from loguru import logger
 
 from config import Config
+from src.monitor.poller import poll_until_open
 from src.utils.timing import wait_until, seconds_until
 
 KST = timezone(timedelta(hours=9))
@@ -85,9 +87,25 @@ async def run_at_sale_time(
         logger.info("브라우저 준비 시작...")
         await on_prepare()
 
-        # 오픈 시각까지 정밀 대기
-        logger.info("오픈 시각까지 정밀 대기...")
-        await wait_until(sale_time)
+        # 오픈 시각까지: 시각 기반 대기 + API 폴링을 병행 실행
+        # 어느 쪽이든 먼저 완료되면 즉시 구매 시도
+        if seconds_until(sale_time) > 0:
+            logger.info("오픈 대기 중 (시각 기반 + API 폴링 병행)...")
+            poll_task = asyncio.create_task(poll_until_open(config))
+            time_task = asyncio.create_task(wait_until(sale_time))
+
+            done, pending = await asyncio.wait(
+                {poll_task, time_task},
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+
+            trigger = "API 폴링" if poll_task in done else "오픈 시각"
+            logger.info(f"구매 트리거: {trigger}")
+
+            for task in pending:
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
 
     # 구매 실행
     logger.info("구매 시도!")

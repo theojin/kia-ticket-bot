@@ -10,6 +10,8 @@ NOTE: 잠실야구장 좌석 맵의 실제 선택자/좌표는 DevTools로 확�
       docs/SEAT_MAP.md에 기록하고 아래 상수를 업데이트하세요.
 """
 
+from __future__ import annotations
+
 import random
 
 from patchright.async_api import Page, TimeoutError as PlaywrightTimeoutError
@@ -39,23 +41,23 @@ SELECTOR_SEAT_CONFIRM = (
 )
 
 
-async def select_seats(page: Page, config: Config) -> bool:
+async def select_seats(page: Page, config: Config) -> str | None:
     """
     우선순위 구역에서 지정된 매수만큼 좌석을 선택합니다.
 
     Returns:
-        좌석 선택 및 확정 성공 여부
+        성공한 구역명 (예: "112") 또는 None (전 구역 실패)
     """
     for section in config.preferred_sections:
         logger.info(f"구역 시도: {section}")
         success = await _try_select_section(page, section, config.max_tickets)
         if success:
             logger.info(f"좌석 선택 성공: {section}구역 {config.max_tickets}석")
-            return True
+            return section
         logger.info(f"{section}구역 선택 실패 - 다음 구역으로")
 
     logger.error("모든 선호 구역 선택 실패")
-    return False
+    return None
 
 
 async def _try_select_section(page: Page, section: str, quantity: int) -> bool:

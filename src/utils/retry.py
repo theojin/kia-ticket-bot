@@ -4,6 +4,8 @@ utils/retry.py - 재시도 데코레이터
 네트워크 오류나 일시적 실패 시 지수 백오프(exponential backoff)로 재시도합니다.
 """
 
+from __future__ import annotations
+
 import asyncio
 import functools
 from typing import Callable, Type

@@ -91,14 +91,14 @@ async def main():
                 return False
 
             # 좌석 선택
-            if not await select_seats(page, config):
+            section_used = await select_seats(page, config)
+            if not section_used:
                 screenshot_path = await take_screenshot(page, "seat_fail")
                 await notifier.notify_failure("좌석 선택 실패 (전 구역 매진)")
                 if screenshot_path:
                     await notifier.send_screenshot(screenshot_path)
                 return False
 
-            section_used = config.preferred_sections[0]  # 실제로는 성공한 구역
             await notifier.notify_seat_selected(section_used, config.max_tickets)
 
             # 결제

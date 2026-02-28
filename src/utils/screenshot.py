@@ -4,6 +4,8 @@ utils/screenshot.py - 오류 발생 시 브라우저 스크린샷 저장
 결제 화면은 카드 정보 노출 위험이 있으므로 촬영하지 않습니다.
 """
 
+from __future__ import annotations
+
 import os
 from datetime import datetime
 from pathlib import Path

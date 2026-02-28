@@ -6,6 +6,8 @@ config.py - 설정 로드 및 유효성 검사
 민감정보(카드번호 등)는 이 파일에 직접 작성하지 마세요.
 """
 
+from __future__ import annotations
+
 import os
 from dataclasses import dataclass, field
 from datetime import datetime
