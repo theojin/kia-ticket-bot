@@ -1,0 +1,26 @@
+# 브라우저 자동화 (봇 탐지 우회 강화 버전의 Playwright)
+patchright>=1.0.0
+
+# 설정 관리 (.env 파일 로드)
+python-dotenv>=1.0.0
+
+# 타이밍 스케줄러 (오픈 시각 정밀 실행)
+APScheduler>=3.10.0
+
+# HTTP 클라이언트 (티켓 오픈 여부 API 폴링)
+httpx[asyncio]>=0.27.0
+
+# Telegram 알림
+python-telegram-bot>=21.0.0
+
+# 로컬 소리 알림
+playsound3>=1.0.0
+
+# 구조화된 로깅 (파일 로테이션 + 컬러 출력)
+loguru>=0.7.0
+
+# NTP 시각 동기화 확인
+ntplib>=0.4.0
+
+# 민감정보 커밋 방지 스캐너 (개발용)
+detect-secrets>=1.4.0
