@@ -49,6 +49,13 @@ class Notifier:
     async def notify_failure(self, reason: str) -> None:
         await self._send(f"예매 실패: {reason}")
 
+    async def notify_stop_before_payment(self, section: str, quantity: int) -> None:
+        await self._send(
+            f"[테스트 모드] 결제 직전에서 일시 정지\n"
+            f"구역: {section} / {quantity}석\n"
+            f"터미널에서 Enter(진행) 또는 n(중단)을 입력하세요."
+        )
+
     async def notify_manual_payment_needed(self) -> None:
         await self._send(
             "ISP/안심클릭 결제 감지!\n"

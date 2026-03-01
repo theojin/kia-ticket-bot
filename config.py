@@ -62,6 +62,7 @@ class Config:
     pre_sale_activate_seconds: int
     headless: bool
     screenshot_on_error: bool
+    stop_before_payment: bool  # True이면 결제 직전에 사용자 확인 후 진행
 
     def __post_init__(self):
         if self.max_tickets < 1 or self.max_tickets > 4:
@@ -81,6 +82,7 @@ class Config:
             f"  카드: {_mask(self.card_number)} (****)\n"
             f"  Telegram: {'설정됨' if self.telegram_bot_token else '미설정'}\n"
             f"  Headless: {self.headless}\n"
+            f"  결제 전 확인: {'ON (테스트 모드)' if self.stop_before_payment else 'OFF'}\n"
         )
 
 
@@ -115,4 +117,5 @@ def load_config() -> Config:
         pre_sale_activate_seconds=int(os.getenv("PRE_SALE_ACTIVATE_SECONDS", "30")),
         headless=os.getenv("HEADLESS", "false").lower() == "true",
         screenshot_on_error=os.getenv("SCREENSHOT_ON_ERROR", "true").lower() == "true",
+        stop_before_payment=os.getenv("STOP_BEFORE_PAYMENT", "false").lower() == "true",
     )

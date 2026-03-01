@@ -28,6 +28,7 @@ def _make_config(**overrides) -> Config:
         pre_sale_activate_seconds=30,
         headless=False,
         screenshot_on_error=True,
+        stop_before_payment=False,
     )
     defaults.update(overrides)
     return Config(**defaults)

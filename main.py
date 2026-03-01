@@ -101,6 +101,25 @@ async def main():
 
             await notifier.notify_seat_selected(section_used, config.max_tickets)
 
+            # 결제 직전 일시 정지 (STOP_BEFORE_PAYMENT=true 일 때)
+            if config.stop_before_payment:
+                screenshot_path = await take_screenshot(page, "before_payment")
+                await notifier.notify_stop_before_payment(section_used, config.max_tickets)
+                if screenshot_path:
+                    await notifier.send_screenshot(screenshot_path)
+
+                logger.warning("=" * 50)
+                logger.warning("[테스트 모드] 결제 직전에서 일시 정지")
+                logger.warning(f"  구역: {section_used}  /  {config.max_tickets}석")
+                logger.warning("  Enter → 결제 진행   |   n + Enter → 중단")
+                logger.warning("=" * 50)
+
+                loop = asyncio.get_running_loop()
+                answer = await loop.run_in_executor(None, input, "계속할까요? [Enter/n]: ")
+                if answer.strip().lower() == "n":
+                    logger.info("사용자가 결제를 취소했습니다.")
+                    return False
+
             # 결제
             order_number = await complete_payment(page, config, notifier)
             if order_number:

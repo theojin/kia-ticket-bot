@@ -38,6 +38,7 @@ def _make_config(sale_offset_seconds: float) -> Config:
         pre_sale_activate_seconds=3600,  # prepare_time 을 항상 과거로
         headless=True,
         screenshot_on_error=False,
+        stop_before_payment=False,
     )
 
 
