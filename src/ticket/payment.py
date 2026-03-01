@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import asyncio
 
-from patchright.async_api import Page, TimeoutError as PlaywrightTimeoutError
+from playwright.async_api import Page, TimeoutError as PlaywrightTimeoutError
 from loguru import logger
 
 from config import Config

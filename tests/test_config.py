@@ -6,22 +6,16 @@ from unittest.mock import patch
 
 import pytest
 
-from config import Config, _mask, load_config
+from config import Config, load_config
 
 
 def _make_config(**overrides) -> Config:
     """테스트용 Config 기본값 생성."""
     defaults = dict(
-        interpark_id="testuser",
-        interpark_pw="testpass",
         goods_id="12345678",
         sale_start_time=datetime(2026, 4, 1, 10, 0, 0),
         preferred_sections=["112", "113"],
         max_tickets=3,
-        card_number="0000-1111-2222-3333",
-        card_expiry="1228",
-        card_cvv="123",
-        card_password_2digits="12",
         telegram_bot_token="bot_token",
         telegram_chat_id="123456",
         polling_interval=0.5,
@@ -29,6 +23,13 @@ def _make_config(**overrides) -> Config:
         headless=False,
         screenshot_on_error=True,
         stop_before_payment=False,
+        sports_code="",
+        team_code="",
+        ticket_adult=2,
+        ticket_child=1,
+        booker_birth="",
+        booker_phone="",
+        booker_email="",
     )
     defaults.update(overrides)
     return Config(**defaults)
@@ -37,33 +38,12 @@ def _make_config(**overrides) -> Config:
 def _base_env() -> dict:
     """load_config() 호출에 필요한 최소 환경변수."""
     return {
-        "INTERPARK_ID": "testuser",
-        "INTERPARK_PW": "testpass",
         "GOODS_ID": "12345678",
         "SALE_START_TIME": "2026-04-01T10:00:00+09:00",
         "PREFERRED_SECTIONS": "112,113",
-        "CARD_NUMBER": "0000-1111-2222-3333",
-        "CARD_EXPIRY": "1228",
-        "CARD_CVV": "123",
-        "CARD_PASSWORD_2DIGITS": "12",
         "TELEGRAM_BOT_TOKEN": "bot_token",
         "TELEGRAM_CHAT_ID": "123456",
     }
-
-
-class TestMask:
-    def test_value_shorter_than_visible_returns_asterisks(self):
-        assert _mask("abc", visible=4) == "****"
-
-    def test_value_equal_to_visible_returns_asterisks(self):
-        assert _mask("1234", visible=4) == "****"
-
-    def test_masks_characters_beyond_visible(self):
-        assert _mask("12345678", visible=4) == "1234****"
-
-    def test_default_visible_is_four(self):
-        result = _mask("ABCDEFGH")
-        assert result == "ABCD****"
 
 
 class TestConfigValidation:
@@ -96,15 +76,24 @@ class TestConfigValidation:
         assert cfg.goods_id == "12345678"
         assert cfg.preferred_sections == ["112", "113"]
 
+    def test_sports_code_without_team_code_raises(self):
+        with pytest.raises(ValueError, match="SPORTS_CODE.*TEAM_CODE"):
+            _make_config(sports_code="07002", team_code="")
+
+    def test_team_code_without_sports_code_raises(self):
+        with pytest.raises(ValueError, match="SPORTS_CODE.*TEAM_CODE"):
+            _make_config(sports_code="", team_code="PS113")
+
+    def test_both_sports_fields_set_is_valid(self):
+        cfg = _make_config(sports_code="07002", team_code="PS113")
+        assert cfg.is_sports is True
+
+    def test_both_sports_fields_empty_is_valid(self):
+        cfg = _make_config(sports_code="", team_code="")
+        assert cfg.is_sports is False
+
 
 class TestLoadConfig:
-    def test_missing_interpark_id_raises(self):
-        env = _base_env()
-        del env["INTERPARK_ID"]
-        with patch.dict(os.environ, env, clear=True):
-            with pytest.raises(ValueError, match="INTERPARK_ID"):
-                load_config()
-
     def test_missing_goods_id_raises(self):
         env = _base_env()
         del env["GOODS_ID"]
@@ -145,19 +134,34 @@ class TestLoadConfig:
             cfg = load_config()
         assert cfg.headless is True
 
+    def test_sports_fields_default_to_empty(self):
+        with patch.dict(os.environ, _base_env(), clear=True):
+            cfg = load_config()
+        assert cfg.sports_code == ""
+        assert cfg.team_code == ""
+        assert cfg.is_sports is False
+
+    def test_sports_code_loaded_from_env(self):
+        env = {**_base_env(), "SPORTS_CODE": "07002", "TEAM_CODE": "PS113"}
+        with patch.dict(os.environ, env, clear=True):
+            cfg = load_config()
+        assert cfg.sports_code == "07002"
+        assert cfg.team_code == "PS113"
+        assert cfg.is_sports is True
+
 
 class TestConfigSummary:
-    def test_summary_does_not_contain_raw_card_number(self):
-        cfg = _make_config(card_number="9876-5432-1012-3456")
-        summary = cfg.summary()
-        assert "9876-5432-1012-3456" not in summary
-
-    def test_summary_contains_masked_card_prefix(self):
-        cfg = _make_config(card_number="9876-5432-1012-3456")
-        summary = cfg.summary()
-        assert "9876" in summary
-
     def test_summary_contains_goods_id(self):
         cfg = _make_config(goods_id="99998888")
         summary = cfg.summary()
         assert "99998888" in summary
+
+    def test_summary_shows_sports_mode(self):
+        cfg = _make_config(sports_code="07002", team_code="PS113")
+        summary = cfg.summary()
+        assert "스포츠" in summary
+
+    def test_summary_shows_normal_mode(self):
+        cfg = _make_config()
+        summary = cfg.summary()
+        assert "일반" in summary

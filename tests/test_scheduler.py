@@ -22,16 +22,10 @@ def _make_config(sale_offset_seconds: float) -> Config:
     """
     sale_time = datetime.now(tz=KST) + timedelta(seconds=sale_offset_seconds)
     return Config(
-        interpark_id="id",
-        interpark_pw="pw",
         goods_id="12345",
         sale_start_time=sale_time,
         preferred_sections=["112"],
         max_tickets=3,
-        card_number="0000-1111-2222-3333",
-        card_expiry="1228",
-        card_cvv="123",
-        card_password_2digits="12",
         telegram_bot_token="token",
         telegram_chat_id="chat",
         polling_interval=0.5,
@@ -39,6 +33,13 @@ def _make_config(sale_offset_seconds: float) -> Config:
         headless=True,
         screenshot_on_error=False,
         stop_before_payment=False,
+        sports_code="",
+        team_code="",
+        ticket_adult=2,
+        ticket_child=1,
+        booker_birth="",
+        booker_phone="",
+        booker_email="",
     )
 
 
@@ -64,8 +65,8 @@ class TestCheckClockSync:
 
 
 class TestRunAtSaleTime:
-    async def test_past_sale_time_calls_buy_immediately(self):
-        """이미 오픈 시각이 지난 경우 즉시 구매를 시도해야 함."""
+    async def test_past_sale_time_calls_prepare_then_buy(self):
+        """이미 오픈 시각이 지난 경우에도 prepare 후 즉시 구매를 시도해야 함."""
         config = _make_config(-10)
         on_prepare = AsyncMock()
         on_buy = AsyncMock(return_value=True)
@@ -73,8 +74,8 @@ class TestRunAtSaleTime:
         result = await run_at_sale_time(config, on_prepare, on_buy)
 
         assert result is True
+        on_prepare.assert_called_once()
         on_buy.assert_called_once()
-        on_prepare.assert_not_called()
 
     async def test_returns_false_when_buy_fails(self):
         """on_buy 가 False 를 반환하면 결과도 False 여야 함."""

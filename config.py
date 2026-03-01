@@ -3,7 +3,6 @@ config.py - 설정 로드 및 유효성 검사
 
 .env 파일에서 모든 설정을 로드합니다.
 필수 항목이 누락된 경우 프로그램 시작 시 즉시 오류를 발생시킵니다.
-민감정보(카드번호 등)는 이 파일에 직접 작성하지 마세요.
 """
 
 from __future__ import annotations
@@ -28,34 +27,29 @@ def _require(key: str) -> str:
     return value
 
 
-def _mask(value: str, visible: int = 4) -> str:
-    """민감정보 마스킹 (로그 출력용)."""
-    if len(value) <= visible:
-        return "****"
-    return value[:visible] + "*" * (len(value) - visible)
-
 
 @dataclass
 class Config:
-    # NOL 티켓 계정
-    interpark_id: str
-    interpark_pw: str
-
     # 대상 티켓
     goods_id: str
     sale_start_time: datetime
     preferred_sections: list[str]
     max_tickets: int
 
-    # 결제 정보
-    card_number: str
-    card_expiry: str
-    card_cvv: str
-    card_password_2digits: str
-
     # Telegram
     telegram_bot_token: str
     telegram_chat_id: str
+
+    # 스포츠 티켓 (선택사항 - 설정 시 스포츠 플로우 사용)
+    sports_code: str  # 예: "07002" (축구), 빈 문자열이면 일반 플로우
+    team_code: str  # 예: "PS113" (충남아산FC), 빈 문자열이면 일반 플로우
+
+    # 스포츠 예매 정보
+    ticket_adult: int  # 성인 매수
+    ticket_child: int  # 어린이 매수
+    booker_birth: str  # 예매자 생년월일 (YYMMDD)
+    booker_phone: str  # 예매자 연락처 (010-XXXX-XXXX)
+    booker_email: str  # 예매자 이메일
 
     # 동작 설정
     polling_interval: float
@@ -64,22 +58,32 @@ class Config:
     screenshot_on_error: bool
     stop_before_payment: bool  # True이면 결제 직전에 사용자 확인 후 진행
 
+    @property
+    def is_sports(self) -> bool:
+        """스포츠 티켓 플로우 사용 여부."""
+        return bool(self.sports_code and self.team_code)
+
     def __post_init__(self):
         if self.max_tickets < 1 or self.max_tickets > 4:
             raise ValueError("MAX_TICKETS는 1~4 사이여야 합니다.")
         if self.polling_interval < 0.1:
             raise ValueError("POLLING_INTERVAL_SECONDS는 0.1 이상이어야 합니다.")
+        if bool(self.sports_code) != bool(self.team_code):
+            raise ValueError(
+                "SPORTS_CODE와 TEAM_CODE는 함께 설정하거나 둘 다 비워야 합니다."
+            )
 
     def summary(self) -> str:
         """설정 요약 (민감정보 마스킹 처리)."""
         return (
             f"[설정 요약]\n"
-            f"  계정: {_mask(self.interpark_id)}\n"
+            f"  모드: {'스포츠' if self.is_sports else '일반'}\n"
             f"  상품 ID: {self.goods_id}\n"
-            f"  오픈 시각: {self.sale_start_time.isoformat()}\n"
+            + (f"  스포츠 코드: {self.sports_code}\n"
+               f"  팀 코드: {self.team_code}\n" if self.is_sports else "")
+            + f"  오픈 시각: {self.sale_start_time.isoformat()}\n"
             f"  선호 구역: {', '.join(self.preferred_sections)}\n"
             f"  예매 매수: {self.max_tickets}매\n"
-            f"  카드: {_mask(self.card_number)} (****)\n"
             f"  Telegram: {'설정됨' if self.telegram_bot_token else '미설정'}\n"
             f"  Headless: {self.headless}\n"
             f"  결제 전 확인: {'ON (테스트 모드)' if self.stop_before_payment else 'OFF'}\n"
@@ -101,16 +105,10 @@ def load_config() -> Config:
     preferred_sections = [s.strip() for s in sections_raw.split(",") if s.strip()]
 
     return Config(
-        interpark_id=_require("INTERPARK_ID"),
-        interpark_pw=_require("INTERPARK_PW"),
         goods_id=_require("GOODS_ID"),
         sale_start_time=sale_start_time,
         preferred_sections=preferred_sections,
         max_tickets=int(os.getenv("MAX_TICKETS", "3")),
-        card_number=_require("CARD_NUMBER"),
-        card_expiry=_require("CARD_EXPIRY"),
-        card_cvv=_require("CARD_CVV"),
-        card_password_2digits=_require("CARD_PASSWORD_2DIGITS"),
         telegram_bot_token=_require("TELEGRAM_BOT_TOKEN"),
         telegram_chat_id=_require("TELEGRAM_CHAT_ID"),
         polling_interval=float(os.getenv("POLLING_INTERVAL_SECONDS", "0.5")),
@@ -118,4 +116,11 @@ def load_config() -> Config:
         headless=os.getenv("HEADLESS", "false").lower() == "true",
         screenshot_on_error=os.getenv("SCREENSHOT_ON_ERROR", "true").lower() == "true",
         stop_before_payment=os.getenv("STOP_BEFORE_PAYMENT", "false").lower() == "true",
+        sports_code=os.getenv("SPORTS_CODE", ""),
+        team_code=os.getenv("TEAM_CODE", ""),
+        ticket_adult=int(os.getenv("TICKET_ADULT", "2")),
+        ticket_child=int(os.getenv("TICKET_CHILD", "1")),
+        booker_birth=os.getenv("BOOKER_BIRTH", ""),
+        booker_phone=os.getenv("BOOKER_PHONE", ""),
+        booker_email=os.getenv("BOOKER_EMAIL", ""),
     )

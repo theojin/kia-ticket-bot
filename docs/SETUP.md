@@ -52,16 +52,10 @@ notepad .env
 
 | 항목 | 설명 |
 |------|------|
-| `INTERPARK_ID` | NOL 티켓 아이디 |
-| `INTERPARK_PW` | NOL 티켓 비밀번호 |
 | `GOODS_ID` | 티켓 URL의 상품번호 (예: `ticket.interpark.com/goods/`**`12345678`**) |
 | `SALE_START_TIME` | 티켓 오픈 시각 (예: `2026-04-01T10:00:00+09:00`) |
 | `PREFERRED_SECTIONS` | 선호 구역 (기본값: `112,113,318,319,KIA_3루`) |
 | `MAX_TICKETS` | 예매 매수 (기본값: `3`) |
-| `CARD_NUMBER` | 카드번호 16자리 (하이픈 없이) |
-| `CARD_EXPIRY` | 유효기간 (MMYY 형식, 예: `1228`) |
-| `CARD_CVV` | 카드 뒷면 3자리 |
-| `CARD_PASSWORD_2DIGITS` | 카드 비밀번호 앞 2자리 |
 | `TELEGRAM_BOT_TOKEN` | Telegram 봇 토큰 |
 | `TELEGRAM_CHAT_ID` | Telegram 채팅 ID |
 
@@ -105,7 +99,7 @@ python main.py
 | 로그인 실패 | `src/auth/login.py`의 선택자 확인, NOL 티켓 사이트 변경 여부 확인 |
 | 구매 버튼 못 찾음 | `src/ticket/navigator.py` 선택자 업데이트 |
 | 좌석 선택 실패 | `docs/SEAT_MAP.md` 참고, `seat_selector.py` 선택자 업데이트 |
-| 결제 창 오류 | `src/ticket/payment.py` 선택자 확인, ISP 방식 여부 확인 |
+| 결제 창 오류 | 카드사 결제 팝업(이니시스) 확인, 팝업 차단 설정 확인 |
 
 로그 파일: `logs/bot_YYYYMMDD.log`
 오류 스크린샷: `screenshots/` 폴더

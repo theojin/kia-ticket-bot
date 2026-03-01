@@ -19,7 +19,7 @@ from src.auth.verify import ensure_logged_in
 from src.monitor.scheduler import run_at_sale_time, check_clock_sync
 from src.ticket.navigator import navigate_to_goods, click_buy_button, wait_for_queue
 from src.ticket.seat_selector import select_seats
-from src.ticket.payment import complete_payment
+from src.ticket.sports_booking import run_sports_booking
 from src.notify.telegram import Notifier
 from src.notify.sound import play_alert
 from src.utils.screenshot import take_screenshot
@@ -55,6 +55,9 @@ async def main():
     # 4. 브라우저 세션 생성
     browser, context, page = await create_session(config)
 
+    # navigate_to_goods가 반환하는 예매 페이지 (스포츠=팝업, 일반=page)
+    booking_page = None
+
     try:
         # 5. 로그인 확인
         logged_in = await ensure_logged_in(page, config)
@@ -74,63 +77,23 @@ async def main():
         # 6. 오픈 시각에 맞춰 구매 실행
         async def on_prepare():
             """오픈 N초 전: 상품 페이지로 이동"""
-            await navigate_to_goods(page, config)
+            nonlocal booking_page
+            booking_page = await navigate_to_goods(page, config)
 
         async def on_buy() -> bool:
-            """오픈 시각: 구매 버튼 클릭 → 대기열 → 좌석 선택 → 결제"""
-            # 구매 버튼 클릭
-            if not await click_buy_button(page):
-                await notifier.notify_failure("구매 버튼 클릭 실패")
+            """오픈 시각: 예매 진행"""
+            nonlocal booking_page
+
+            if not booking_page:
+                await notifier.notify_failure("상품 페이지 이동 실패")
                 return False
 
-            await notifier.notify_queue_entered()
+            # 스포츠 모드: 전용 흐름 (좌석 → 수량 → 약관 → 배송정보)
+            if config.is_sports:
+                return await _sports_buy(booking_page, config, notifier)
 
-            # 대기열 통과 대기
-            if not await wait_for_queue(page):
-                await notifier.notify_failure("대기열 타임아웃")
-                return False
-
-            # 좌석 선택
-            section_used = await select_seats(page, config)
-            if not section_used:
-                screenshot_path = await take_screenshot(page, "seat_fail")
-                await notifier.notify_failure("좌석 선택 실패 (전 구역 매진)")
-                if screenshot_path:
-                    await notifier.send_screenshot(screenshot_path)
-                return False
-
-            await notifier.notify_seat_selected(section_used, config.max_tickets)
-
-            # 결제 직전 일시 정지 (STOP_BEFORE_PAYMENT=true 일 때)
-            if config.stop_before_payment:
-                screenshot_path = await take_screenshot(page, "before_payment")
-                await notifier.notify_stop_before_payment(section_used, config.max_tickets)
-                if screenshot_path:
-                    await notifier.send_screenshot(screenshot_path)
-
-                logger.warning("=" * 50)
-                logger.warning("[테스트 모드] 결제 직전에서 일시 정지")
-                logger.warning(f"  구역: {section_used}  /  {config.max_tickets}석")
-                logger.warning("  Enter → 결제 진행   |   n + Enter → 중단")
-                logger.warning("=" * 50)
-
-                loop = asyncio.get_running_loop()
-                answer = await loop.run_in_executor(None, input, "계속할까요? [Enter/n]: ")
-                if answer.strip().lower() == "n":
-                    logger.info("사용자가 결제를 취소했습니다.")
-                    return False
-
-            # 결제
-            order_number = await complete_payment(page, config, notifier)
-            if order_number:
-                await notifier.notify_success(order_number)
-                await play_alert("success")
-                logger.info(f"예매 완료! 주문번호: {order_number}")
-                return True
-            else:
-                await notifier.notify_failure("결제 실패")
-                await play_alert("failure")
-                return False
+            # 일반 모드: 기존 흐름
+            return await _normal_buy(booking_page, config, notifier)
 
         success = await run_at_sale_time(config, on_prepare, on_buy)
 
@@ -141,7 +104,8 @@ async def main():
 
     except Exception as e:
         logger.error(f"예상치 못한 오류: {e}")
-        screenshot_path = await take_screenshot(page, "crash")
+        target = booking_page or page
+        screenshot_path = await take_screenshot(target, "crash")
         await notifier.notify_failure(f"예상치 못한 오류: {e}")
         if screenshot_path:
             await notifier.send_screenshot(screenshot_path)
@@ -149,6 +113,83 @@ async def main():
 
     finally:
         await close_session(browser)
+
+
+async def _sports_buy(popup: "Page", config, notifier: "Notifier") -> bool:
+    """스포츠 예매 흐름 (좌석→수량→약관→배송→결제→카드사 팝업)."""
+    payment_page = await run_sports_booking(popup, config)
+    if not payment_page:
+        screenshot_path = await take_screenshot(popup, "sports_fail")
+        await notifier.notify_failure("스포츠 예매 진행 실패")
+        if screenshot_path:
+            await notifier.send_screenshot(screenshot_path)
+        return False
+
+    total_tickets = config.ticket_adult + config.ticket_child
+    grade_info = f"일반석 성인{config.ticket_adult}+어린이{config.ticket_child}"
+
+    # 결제 팝업 스크린샷 캡처 + 텔레그램 전송
+    screenshot_path = await take_screenshot(payment_page, "payment_popup")
+    await notifier.notify_payment_ready(grade_info, total_tickets)
+    if screenshot_path:
+        await notifier.send_screenshot(screenshot_path, "카드사 결제 화면 - 결제를 완료해주세요!")
+
+    await play_alert("success")
+    logger.info("카드사 결제 팝업이 표시되었습니다. 브라우저에서 결제를 완료하세요.")
+    while True:
+        await asyncio.sleep(60)
+    return True
+
+
+async def _normal_buy(page: "Page", config, notifier: "Notifier") -> bool:
+    """일반(공연) 예매 흐름."""
+    # 구매 버튼 클릭
+    if not await click_buy_button(page):
+        await notifier.notify_failure("구매 버튼 클릭 실패")
+        return False
+
+    await notifier.notify_queue_entered()
+
+    # 대기열 통과 대기
+    if not await wait_for_queue(page):
+        await notifier.notify_failure("대기열 타임아웃")
+        return False
+
+    # 좌석 선택
+    section_used = await select_seats(page, config)
+    if not section_used:
+        screenshot_path = await take_screenshot(page, "seat_fail")
+        await notifier.notify_failure("좌석 선택 실패 (전 구역 매진)")
+        if screenshot_path:
+            await notifier.send_screenshot(screenshot_path)
+        return False
+
+    await notifier.notify_seat_selected(section_used, config.max_tickets)
+
+    # 결제 직전 일시 정지
+    if config.stop_before_payment:
+        screenshot_path = await take_screenshot(page, "before_payment")
+        await notifier.notify_stop_before_payment(section_used, config.max_tickets)
+        if screenshot_path:
+            await notifier.send_screenshot(screenshot_path)
+
+        logger.warning("=" * 50)
+        logger.warning("[테스트 모드] 결제 직전에서 일시 정지")
+        logger.warning(f"  구역: {section_used}  /  {config.max_tickets}석")
+        logger.warning("  브라우저에서 직접 결제하거나 종료하세요.")
+        logger.warning("=" * 50)
+
+        await play_alert("success")
+        while True:
+            await asyncio.sleep(60)
+        return True
+
+    # 결제 (사용자가 브라우저에서 직접 완료)
+    await play_alert("success")
+    logger.info("결제 화면이 표시되었습니다. 브라우저에서 결제를 완료하세요.")
+    while True:
+        await asyncio.sleep(60)
+    return True
 
 
 if __name__ == "__main__":

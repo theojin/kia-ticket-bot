@@ -56,6 +56,13 @@ class Notifier:
             f"터미널에서 Enter(진행) 또는 n(중단)을 입력하세요."
         )
 
+    async def notify_payment_ready(self, section: str, quantity: int) -> None:
+        await self._send(
+            f"카드사 결제 팝업이 열렸습니다!\n"
+            f"구역: {section} / {quantity}석\n"
+            f"브라우저에서 결제를 완료해주세요."
+        )
+
     async def notify_manual_payment_needed(self) -> None:
         await self._send(
             "ISP/안심클릭 결제 감지!\n"
@@ -63,14 +70,14 @@ class Notifier:
             "브라우저 창을 확인하세요."
         )
 
-    async def send_screenshot(self, path: str) -> None:
-        """오류 스크린샷을 전송합니다."""
+    async def send_screenshot(self, path: str, caption: str = "오류 발생 스크린샷") -> None:
+        """스크린샷을 전송합니다."""
         try:
             with open(path, "rb") as f:
                 await self.bot.send_photo(
                     chat_id=self.chat_id,
                     photo=f,
-                    caption="오류 발생 스크린샷"
+                    caption=caption,
                 )
         except Exception as e:
             logger.warning(f"스크린샷 전송 실패: {e}")

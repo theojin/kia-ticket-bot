@@ -77,6 +77,7 @@ async def run_at_sale_time(
 
     if remaining < 0:
         logger.warning("이미 오픈 시각이 지났습니다. 즉시 구매를 시도합니다.")
+        await on_prepare()
     else:
         # 준비 시각까지 대기
         if seconds_until(prepare_time) > 0:
